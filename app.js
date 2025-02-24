@@ -316,7 +316,7 @@ class AudioGame {
         
         // Add success screen keyboard controls
         const successHandler = (e) => {
-            if (this.isPlaying) return;
+            //if (this.isPlaying) return;
             
             switch(e.key.toLowerCase()) {
                 case ' ':
@@ -381,30 +381,60 @@ class AudioGame {
         });
     }
 
-    // Add new method to set up voice recognition
+    // Modify setupVoiceRecognition method
     setupVoiceRecognition() {
-        if ('webkitSpeechRecognition' in window) {
-            this.recognition = new webkitSpeechRecognition();
-            this.recognition.continuous = false;
-            this.recognition.interimResults = false;
-            this.recognition.lang = 'en-US';
-
-            this.recognition.onresult = (event) => {
-                const command = event.results[0][0].transcript.toLowerCase().trim();
-                console.log('Voice command:', command);
-                this.handleVoiceCommand(command);
-            };
-
-            this.recognition.onend = () => {
-                this.isListening = false;
-                document.getElementById('voice-control').classList.remove('listening');
-                if (this.continuousListening) {
-                    this.startListening();
-                }
-            };
-        } else {
-            console.log('Speech Recognition not supported');
+        // Check if we're in a secure context (HTTPS)
+        if (!window.isSecureContext) {
+            console.log('Speech Recognition requires HTTPS');
+            this.showVoiceError('Voice control requires HTTPS. Please use a secure connection.');
+            return;
         }
+
+        // Check if the API is available
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            console.log('Speech Recognition not supported');
+            this.showVoiceError('Voice control is not supported in this browser.');
+            return;
+        }
+
+        // Use the standard API if available, otherwise use the webkit prefix
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        this.recognition = new SpeechRecognition();
+        
+        // Configure recognition
+        this.recognition.continuous = false;
+        this.recognition.interimResults = false;
+        this.recognition.lang = 'en-US';
+
+        // Request microphone permission
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => {
+                // Permission granted, set up recognition handlers
+                this.recognition.onresult = (event) => {
+                    const command = event.results[0][0].transcript.toLowerCase().trim();
+                    console.log('Voice command:', command);
+                    this.handleVoiceCommand(command);
+                };
+
+                this.recognition.onend = () => {
+                    this.isListening = false;
+                    document.getElementById('voice-control').classList.remove('listening');
+                    if (this.continuousListening) {
+                        this.startListening();
+                    }
+                };
+
+                this.recognition.onerror = (event) => {
+                    console.log('Recognition error:', event.error);
+                    this.showVoiceError('Voice recognition error. Please try again.');
+                    this.isListening = false;
+                    document.getElementById('voice-control').classList.remove('listening');
+                };
+            })
+            .catch(error => {
+                console.log('Microphone permission denied:', error);
+                this.showVoiceError('Please allow microphone access to use voice control.');
+            });
     }
 
     // Add new method to handle voice commands
@@ -448,7 +478,7 @@ class AudioGame {
         }
     }
 
-    // Add new method to start voice recognition
+    // Modify startListening method
     startListening() {
         if (this.recognition && !this.isListening) {
             try {
@@ -457,6 +487,9 @@ class AudioGame {
                 document.getElementById('voice-control').classList.add('listening');
             } catch (error) {
                 console.log('Recognition error:', error);
+                this.showVoiceError('Could not start voice recognition. Please try again.');
+                this.isListening = false;
+                document.getElementById('voice-control').classList.remove('listening');
             }
         }
     }
@@ -480,6 +513,27 @@ class AudioGame {
         });
         
         document.body.appendChild(button);
+    }
+
+    // Add new method to show voice errors
+    showVoiceError(message) {
+        // Create error toast if it doesn't exist
+        let errorToast = document.getElementById('voice-error');
+        if (!errorToast) {
+            errorToast = document.createElement('div');
+            errorToast.id = 'voice-error';
+            errorToast.className = 'voice-error';
+            document.body.appendChild(errorToast);
+        }
+
+        // Show error message
+        errorToast.textContent = message;
+        errorToast.classList.add('show');
+
+        // Hide after 5 seconds
+        setTimeout(() => {
+            errorToast.classList.remove('show');
+        }, 5000);
     }
 }
 
