@@ -127,6 +127,7 @@ class AudioGame {
         if (!this.voiceButtonAdded) {
             this.setupVoiceRecognition();
             this.addVoiceControlButton();
+            this.addSpeechFeedback();
             this.voiceButtonAdded = true;
         }
 
@@ -290,6 +291,12 @@ class AudioGame {
     }
 
     showSuccessScreen() {
+        // Remove speech feedback if it exists
+        const speechFeedback = document.getElementById('speech-feedback');
+        if (speechFeedback) {
+            speechFeedback.remove();
+        }
+        
         // Remove voice control button if it exists
         const voiceButton = document.getElementById('voice-control');
         if (voiceButton) {
@@ -410,9 +417,13 @@ class AudioGame {
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(() => {
                 // Permission granted, set up recognition handlers
+                this.recognition.onstart = () => {
+                    this.showVoiceError('Listening... Speak your command');
+                };
+
                 this.recognition.onresult = (event) => {
                     const command = event.results[0][0].transcript.toLowerCase().trim();
-                    console.log('Voice command:', command);
+                    console.log('Voice command received:', command);
                     this.handleVoiceCommand(command);
                 };
 
@@ -426,7 +437,13 @@ class AudioGame {
 
                 this.recognition.onerror = (event) => {
                     console.log('Recognition error:', event.error);
-                    this.showVoiceError('Voice recognition error. Please try again.');
+                    let errorMessage = 'Voice recognition error. Please try again.';
+                    if (event.error === 'no-speech') {
+                        errorMessage = 'No speech was detected. Please try again.';
+                    } else if (event.error === 'network') {
+                        errorMessage = 'Network error occurred. Please check your connection.';
+                    }
+                    this.showVoiceError(errorMessage);
                     this.isListening = false;
                     document.getElementById('voice-control').classList.remove('listening');
                 };
@@ -437,7 +454,7 @@ class AudioGame {
             });
     }
 
-    // Add new method to handle voice commands
+    // Modify handleVoiceCommand method
     handleVoiceCommand(command) {
         if (this.isPlaying) return;
         
@@ -446,36 +463,54 @@ class AudioGame {
             return;
         }
 
-        switch(command) {
-            case 'question':
-            case 'q':
-                this.playQuestion();
-                break;
-            case 'options':
-            case 'o':
-                this.playOptions();
-                break;
-            case 'help':
-            case 'h':
-                this.playInstructions();
-                break;
-            case 'one':
-            case '1':
-                this.checkAnswer(0);
-                break;
-            case 'two':
-            case '2':
-                this.checkAnswer(1);
-                break;
-            case 'three':
-            case '3':
-                this.checkAnswer(2);
-                break;
-            case 'four':
-            case '4':
-                this.checkAnswer(3);
-                break;
+        // Update speech feedback
+        const feedbackText = document.querySelector('.speech-text');
+        if (feedbackText) {
+            feedbackText.textContent = `You said: "${command}"`;
+            feedbackText.classList.add('highlight');
+            setTimeout(() => feedbackText.classList.remove('highlight'), 1500);
         }
+
+        console.log('Processing command:', command);
+
+        // Check for question-related commands
+        if (command.includes('question') || command.includes('ask')) {
+            this.playQuestion();
+            return;
+        }
+
+        // Check for options-related commands
+        if (command.includes('option') || command.includes('choices') || command.includes('answers')) {
+            this.playOptions();
+            return;
+        }
+
+        // Check for help-related commands
+        if (command.includes('help') || command.includes('instruction')) {
+            this.playInstructions();
+            return;
+        }
+
+        // Check for number-related commands
+        if (command.includes('one') || command.includes('first') || command.includes('1')) {
+            this.checkAnswer(0);
+            return;
+        }
+        if (command.includes('two') || command.includes('second') || command.includes('2')) {
+            this.checkAnswer(1);
+            return;
+        }
+        if (command.includes('three') || command.includes('third') || command.includes('3')) {
+            this.checkAnswer(2);
+            return;
+        }
+        if (command.includes('four') || command.includes('fourth') || command.includes('4')) {
+            this.checkAnswer(3);
+            return;
+        }
+
+        // If no command was recognized
+        this.showVoiceError('Command not recognized. Try again.');
     }
 
     // Modify startListening method
@@ -534,6 +569,26 @@ class AudioGame {
         setTimeout(() => {
             errorToast.classList.remove('show');
         }, 5000);
+    }
+
+    // Add this method to the AudioGame class
+    addSpeechFeedback() {
+        const feedback = document.createElement('div');
+        feedback.id = 'speech-feedback';
+        feedback.className = 'speech-feedback';
+        feedback.innerHTML = `
+            <div class="speech-text"></div>
+            <div class="speech-commands">
+                <p>You can say:</p>
+                <ul>
+                    <li>"question" - to hear the question</li>
+                    <li>"options" - to hear the choices</li>
+                    <li>"help" - for instructions</li>
+                    <li>"one/two/three/four" - to select answer</li>
+                </ul>
+            </div>
+        `;
+        document.body.appendChild(feedback);
     }
 }
 
